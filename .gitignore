@@ -1,0 +1,17 @@
+# Build artifacts
+.build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# App bundle (built artifact)
+QuickGPT.app/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
