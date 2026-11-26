@@ -6,32 +6,28 @@ import Defaults
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private var panel: NSPanel!
+    private var panel: FloatingPanel!
     private var webView: WKWebView!
-    private var eventMonitor: Any?
+    private var clickOutsideMonitor: Any?
+    private var escapeMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Menu bar only - no dock icon
         NSApp.setActivationPolicy(.accessory)
 
         setupWebView()
         setupPanel()
         setupMenuBar()
         setupGlobalShortcut()
-        setupClickOutsideMonitor()
-
-        // Preload ChatGPT for instant access
+        setupMonitors()
         preloadChatGPT()
     }
 
-    // MARK: - WebView (Persistent, Shared Instance)
+    // MARK: - WebView
 
     private func setupWebView() {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
-
-        // Performance optimizations
         config.suppressesIncrementalRendering = false
 
         webView = WKWebView(frame: .zero, configuration: config)
@@ -45,35 +41,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Panel (MacGPT-style dropdown)
+    // MARK: - Panel
 
     private func setupPanel() {
-        let contentView = NSHostingView(rootView: PanelContentView(webView: webView, onClose: { [weak self] in
+        panel = FloatingPanel(webView: webView)
+        panel.onClose = { [weak self] in
             self?.hidePanel()
-        }))
-
-        panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 650),
-            styleMask: [.nonactivatingPanel, .titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-
-        panel.contentView = contentView
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        panel.isMovableByWindowBackground = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.invalidateShadow()
-
-        // Round corners
-        panel.contentView?.wantsLayer = true
-        panel.contentView?.layer?.cornerRadius = 12
-        panel.contentView?.layer?.masksToBounds = true
+        }
     }
 
     // MARK: - Menu Bar
@@ -82,8 +56,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "brain.head.profile", accessibilityDescription: "QuickGPT")
-            button.image?.isTemplate = true
+            // Use a simple brain icon
+            if let image = NSImage(systemSymbolName: "brain.head.profile", accessibilityDescription: "QuickGPT") {
+                image.isTemplate = true
+                button.image = image
+            }
             button.action = #selector(menuBarClicked)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -91,7 +68,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func menuBarClicked(_ sender: NSStatusBarButton) {
-        let event = NSApp.currentEvent!
+        guard let event = NSApp.currentEvent else { return }
 
         if event.type == .rightMouseUp {
             showContextMenu()
@@ -102,9 +79,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Reload", action: #selector(reloadChat), keyEquivalent: "r"))
-        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "New Chat", action: #selector(newChat), keyEquivalent: "n"))
+        menu.addItem(NSMenuItem(title: "Reload", action: #selector(reloadChat), keyEquivalent: "r"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
@@ -115,9 +91,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = nil
     }
 
-    @objc private func reloadChat() {
-        webView.reload()
-    }
+    @objc private func reloadChat() { webView.reload() }
 
     @objc private func newChat() {
         if let url = URL(string: "https://chatgpt.com") {
@@ -130,9 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func quit() {
-        NSApp.terminate(nil)
-    }
+    @objc private func quit() { NSApp.terminate(nil) }
 
     // MARK: - Panel Toggle
 
@@ -145,20 +117,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPanel() {
-        guard let button = statusItem.button else { return }
+        guard let button = statusItem.button, let buttonWindow = button.window else { return }
 
-        // Position below menu bar icon
-        let buttonRect = button.window!.convertToScreen(button.convert(button.bounds, to: nil))
-        let panelWidth = panel.frame.width
-        let panelHeight = panel.frame.height
+        let buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let panelSize = panel.frame.size
 
-        let x = buttonRect.midX - panelWidth / 2
-        let y = buttonRect.minY - panelHeight - 5
+        // Position below menu bar icon, centered
+        let x = buttonRect.midX - panelSize.width / 2
+        let y = buttonRect.minY - panelSize.height - 4
 
         panel.setFrameOrigin(NSPoint(x: x, y: y))
         panel.makeKeyAndOrderFront(nil)
-
-        // Activate for keyboard focus
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -166,28 +135,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panel.orderOut(nil)
     }
 
-    // MARK: - Click Outside to Close
+    // MARK: - Event Monitors
 
-    private func setupClickOutsideMonitor() {
-        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+    private func setupMonitors() {
+        // Click outside to close
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, self.panel.isVisible else { return }
 
-            // Check if click is outside panel and menu bar button
-            let clickLocation = event.locationInWindow
-            if let clickWindow = event.window {
-                let screenPoint = clickWindow.convertToScreen(NSRect(origin: clickLocation, size: .zero)).origin
+            let mouseLocation = NSEvent.mouseLocation
+            let panelFrame = self.panel.frame
 
-                if !self.panel.frame.contains(screenPoint) {
-                    if let buttonFrame = self.statusItem.button?.window?.frame {
-                        if !buttonFrame.contains(screenPoint) {
-                            self.hidePanel()
-                        }
+            // Check if click is outside panel
+            if !panelFrame.contains(mouseLocation) {
+                // Also check if not clicking the status item
+                if let buttonWindow = self.statusItem.button?.window {
+                    if !buttonWindow.frame.contains(mouseLocation) {
+                        self.hidePanel()
                     }
+                } else {
+                    self.hidePanel()
                 }
-            } else {
-                // Click outside any window
-                self.hidePanel()
             }
+        }
+
+        // Escape key to close
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+
+            if event.keyCode == 53 && self.panel.isVisible { // 53 = Escape
+                self.hidePanel()
+                return nil
+            }
+            return event
         }
     }
 
@@ -204,37 +183,75 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Panel Content View
+// MARK: - Floating Panel (MacGPT-style)
 
-struct PanelContentView: View {
+class FloatingPanel: NSPanel {
+    var onClose: (() -> Void)?
+
+    init(webView: WKWebView) {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 650),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
+            backing: .buffered,
+            defer: false
+        )
+
+        let contentView = NSHostingView(rootView: PanelView(webView: webView, onNewChat: {
+            if let url = URL(string: "https://chatgpt.com") {
+                webView.load(URLRequest(url: url))
+            }
+        }, onReload: {
+            webView.reload()
+        }))
+
+        self.contentView = contentView
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.level = .floating
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.isMovableByWindowBackground = true
+        self.hasShadow = true
+
+        // Round corners
+        self.contentView?.wantsLayer = true
+        self.contentView?.layer?.cornerRadius = 12
+        self.contentView?.layer?.masksToBounds = true
+    }
+
+    override var canBecomeKey: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onClose?()
+    }
+}
+
+// MARK: - Panel View
+
+struct PanelView: View {
     let webView: WKWebView
-    let onClose: () -> Void
+    let onNewChat: () -> Void
+    let onReload: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // Title bar
-            HStack {
+            // Header
+            HStack(spacing: 12) {
                 Text("QuickGPT")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
 
                 Spacer()
 
-                Button(action: {
-                    if let url = URL(string: "https://chatgpt.com") {
-                        webView.load(URLRequest(url: url))
-                    }
-                }) {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 14))
+                Button(action: onNewChat) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("New Chat")
 
-                Button(action: { webView.reload() }) {
+                Button(action: onReload) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14))
+                        .font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -246,28 +263,18 @@ struct PanelContentView: View {
 
             Divider()
 
-            // WebView
             WebViewWrapper(webView: webView)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(.background)
-        .frame(width: 420, height: 650)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
-
-// MARK: - WebView Wrapper
 
 struct WebViewWrapper: NSViewRepresentable {
     let webView: WKWebView
-
-    func makeNSView(context: Context) -> WKWebView {
-        return webView
-    }
-
+    func makeNSView(context: Context) -> WKWebView { webView }
     func updateNSView(_ nsView: WKWebView, context: Context) {}
 }
-
-// MARK: - Defaults Keys
 
 extension Defaults.Keys {
     static let inlineModeEnabled = Key<Bool>("inlineModeEnabled", default: true)
