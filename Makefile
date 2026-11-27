@@ -54,5 +54,6 @@ clean:
 # Create release zip for distribution
 release: build
 	@rm -f $(APP_NAME).zip
-	@ditto -c -k --keepParent $(APP_BUNDLE) $(APP_NAME).zip
+	@# No resource forks/xattrs: they become ._ junk files inside the app when unzipped by Homebrew
+	@ditto -c -k --norsrc --noextattr --keepParent $(APP_BUNDLE) $(APP_NAME).zip
 	@echo "Created $(APP_NAME).zip for distribution"
