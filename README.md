@@ -40,10 +40,16 @@ System Settings → Privacy & Security → Accessibility → QuickGPT
 
 | Action | Shortcut |
 |---|---|
-| Toggle panel | `⌘⇧Space` |
+| Toggle panel | `⌥X` (change in Settings) |
 | Open from menu bar | Click brain icon |
-| Close panel | `Escape` or click outside |
+| Close panel | `Escape`, `⌘W` or click outside |
+| New chat / reload | `⌘N` / `⌘R` |
+| Back | Header back button or two-finger swipe |
+| Zoom | `⌘+` / `⌘-` / `⌘0` |
+| Keep open while working | Pin button in the header |
 | Context menu | Right-click icon |
+
+Drag the panel's edges to resize it; the size is remembered. Links to other sites open in your default browser.
 
 Sign in once with your ChatGPT account. Session persists across restarts.
 
