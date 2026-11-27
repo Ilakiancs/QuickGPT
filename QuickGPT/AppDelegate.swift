@@ -183,55 +183,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - WebView Delegate (Opens Google Sign-in in Browser)
+// MARK: - WebView Delegate (Handles all navigation inline)
 
 class WebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
     private weak var mainWebView: WKWebView?
-
-    // Domains that should open in default browser (for OAuth)
-    private let externalDomains = [
-        "accounts.google.com",
-        "appleid.apple.com",
-        "login.microsoftonline.com"
-    ]
 
     init(webView: WKWebView) {
         self.mainWebView = webView
         super.init()
     }
 
-    // Handle popup windows - open OAuth in browser, others inline
+    // Handle popup windows - load in same webview
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if let url = navigationAction.request.url {
-            if shouldOpenInBrowser(url) {
-                NSWorkspace.shared.open(url)
-            } else {
-                webView.load(URLRequest(url: url))
-            }
+            webView.load(URLRequest(url: url))
         }
         return nil
     }
 
-    // Check navigation - open OAuth URLs in browser
+    // Allow all navigations
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if let url = navigationAction.request.url, shouldOpenInBrowser(url) {
-            NSWorkspace.shared.open(url)
-            decisionHandler(.cancel)
-            return
-        }
         decisionHandler(.allow)
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
                  decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         decisionHandler(.allow)
-    }
-
-    private func shouldOpenInBrowser(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
-        return externalDomains.contains { host.contains($0) }
     }
 }
 
