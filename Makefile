@@ -1,4 +1,4 @@
-.PHONY: build run install uninstall clean release
+.PHONY: build run install uninstall clean release test
 
 APP_NAME = QuickGPT
 BUILD_DIR = .build/release
@@ -18,6 +18,10 @@ build:
 	@rm -rf $(APP_BUNDLE)/*.bundle $(APP_BUNDLE)/Contents/_CodeSignature
 	@cp -R $(BUILD_DIR)/*.bundle $(APP_BUNDLE)/
 	@echo "Build complete!"
+
+# Run unit tests
+test:
+	@swift test
 
 # Build and run (without installing)
 run: build

@@ -16,6 +16,11 @@ let package = Package(
             name: "QuickGPT",
             dependencies: ["KeyboardShortcuts", "Defaults"],
             path: "QuickGPT"
-        )
+        ),
+        .testTarget(
+            name: "QuickGPTTests",
+            dependencies: ["QuickGPT"],
+            path: "Tests/QuickGPTTests"
+        ),
     ]
 )
