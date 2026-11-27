@@ -14,5 +14,5 @@ QuickGPT.app/
 
 # Swift Package Manager
 .swiftpm/
-Package.resolved
 QuickGPT.zip
+dist/
