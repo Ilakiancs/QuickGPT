@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in QuickGPT isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press ⌥X
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: QuickGPT version
+      description: Finder → Applications → QuickGPT → Get Info
+      placeholder: "1.1.1"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "macOS 15.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: mac
+    attributes:
+      label: Mac
+      options:
+        - Apple Silicon (M-series)
+        - Intel
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed with
+      options:
+        - Homebrew
+        - Downloaded zip from Releases
+        - Built from source
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots or a screen recording help a lot. Please blur any private chat content.
