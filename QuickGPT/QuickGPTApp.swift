@@ -13,7 +13,7 @@ struct QuickGPTApp: App {
 }
 
 extension KeyboardShortcuts.Name {
-    static let toggleQuickGPT = Self("toggleQuickGPT", default: .init(.x, modifiers: [.option]))
+    static let toggleQuickGPT = Self("toggleQuickGPT", initial: .init(.x, modifiers: [.option]))
 }
 
 extension Defaults.Keys {

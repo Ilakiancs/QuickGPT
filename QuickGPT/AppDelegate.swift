@@ -3,6 +3,8 @@ import SwiftUI
 import KeyboardShortcuts
 import Defaults
 
+/// AppKit calls the delegate on the main thread; KeyboardShortcuts 3 requires that to be declared.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
@@ -223,18 +225,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Selector-based so the handlers are main-actor methods: both notifications are posted on the main thread
+    /// (AppKit's activation change, and the website-data-store completion in SettingsView).
     private func setupObservers() {
         let center = NotificationCenter.default
-        // Cmd-Tab away: behave like clicking away. If a mouse button is down, this is a click in another app
-        // and the mouse-up monitor decides instead (so dragging a file in from Finder keeps the panel open).
-        center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            guard NSEvent.pressedMouseButtons == 0 else { return }
-            if let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier, Self.systemAgents.contains(id) { return }
-            self?.autoHide()
-        }
-        center.addObserver(forName: .quickGPTSessionCleared, object: nil, queue: .main) { [weak self] _ in
-            self?.web.loadHome()
-        }
+        center.addObserver(self, selector: #selector(appDidResignActive),
+                           name: NSApplication.didResignActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(sessionCleared),
+                           name: .quickGPTSessionCleared, object: nil)
+    }
+
+    /// Cmd-Tab away: behave like clicking away. If a mouse button is down, this is a click in another app
+    /// and the mouse-up monitor decides instead (so dragging a file in from Finder keeps the panel open).
+    @objc private func appDidResignActive(_ note: Notification) {
+        guard NSEvent.pressedMouseButtons == 0 else { return }
+        if let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier, Self.systemAgents.contains(id) { return }
+        autoHide()
+    }
+
+    @objc private func sessionCleared(_ note: Notification) {
+        web.loadHome()
     }
 
     // MARK: - Global Shortcut
