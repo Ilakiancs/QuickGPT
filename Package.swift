@@ -9,7 +9,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "1.16.0"),
-        .package(url: "https://github.com/sindresorhus/Defaults", from: "8.2.0"),
+        .package(url: "https://github.com/sindresorhus/Defaults", from: "9.0.9"),
     ],
     targets: [
         .executableTarget(
