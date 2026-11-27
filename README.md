@@ -30,12 +30,6 @@ brew tap ilakiancs/quickgpt
 brew install --cask quickgpt
 ```
 
-Grant Accessibility permission for global shortcuts:
-
-```
-System Settings → Privacy & Security → Accessibility → QuickGPT
-```
-
 ### Usage
 
 | Action | Shortcut |
@@ -80,6 +74,7 @@ make install
 |---|---|
 | `make build` | Compile the app |
 | `make run` | Build and launch |
+| `make test` | Run unit tests |
 | `make install` | Install to /Applications |
 | `make uninstall` | Remove from /Applications |
 | `make release` | Create distributable zip |

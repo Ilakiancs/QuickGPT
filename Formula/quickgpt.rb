@@ -25,9 +25,6 @@ class Quickgpt < Formula
 
       To start: open /Applications/QuickGPT.app
       Or run: brew services start quickgpt
-
-      Grant Accessibility permission for global shortcuts:
-      System Settings → Privacy & Security → Accessibility → QuickGPT
     EOS
   end
 
