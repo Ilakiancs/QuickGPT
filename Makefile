@@ -9,19 +9,26 @@ INSTALL_DIR = /Applications
 build:
 	@echo "Building $(APP_NAME)..."
 	@swift build -c release
+	@mkdir -p $(APP_BUNDLE)/Contents/MacOS $(APP_BUNDLE)/Contents/Resources
 	@cp $(BUILD_DIR)/$(APP_NAME) $(APP_BUNDLE)/Contents/MacOS/
+	@cp Resources/Info.plist $(APP_BUNDLE)/Contents/
+	@cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
+	@# SwiftPM resource bundles must sit at the app root (Bundle.module looks there); without the
+	@# KeyboardShortcuts one, opening the Shortcuts settings tab crashes on any machine without .build/.
+	@rm -rf $(APP_BUNDLE)/*.bundle $(APP_BUNDLE)/Contents/_CodeSignature
+	@cp -R $(BUILD_DIR)/*.bundle $(APP_BUNDLE)/
 	@echo "Build complete!"
 
 # Build and run (without installing)
 run: build
-	@pkill -f $(APP_NAME) 2>/dev/null || true
+	@pkill -x $(APP_NAME) 2>/dev/null || true
 	@sleep 0.5
 	@open $(APP_BUNDLE)
 	@echo "$(APP_NAME) running from dev build"
 
 # Install to /Applications
 install: build
-	@pkill -f $(APP_NAME) 2>/dev/null || true
+	@pkill -x $(APP_NAME) 2>/dev/null || true
 	@sleep 0.5
 	@rm -rf $(INSTALL_DIR)/$(APP_BUNDLE)
 	@cp -r $(APP_BUNDLE) $(INSTALL_DIR)/
@@ -30,7 +37,7 @@ install: build
 
 # Uninstall from /Applications
 uninstall:
-	@pkill -f $(APP_NAME) 2>/dev/null || true
+	@pkill -x $(APP_NAME) 2>/dev/null || true
 	@rm -rf $(INSTALL_DIR)/$(APP_BUNDLE)
 	@echo "Uninstalled $(APP_NAME)"
 
