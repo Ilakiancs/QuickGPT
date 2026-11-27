@@ -1,8 +1,8 @@
 class Quickgpt < Formula
   desc "Lightweight ChatGPT menu bar client for macOS"
   homepage "https://github.com/Ilakiancs/QuickGPT"
-  url "https://github.com/Ilakiancs/QuickGPT/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "" # Will be filled after creating release
+  url "https://github.com/Ilakiancs/QuickGPT/releases/download/v1.0.0/QuickGPT.zip"
+  sha256 "643281b4bdde837a7b7a2f331954d01833207be3c6c822de374d6bf8e4d87f8d"
   license "MIT"
 
   depends_on xcode: ["14.0", :build]
