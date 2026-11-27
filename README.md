@@ -1,43 +1,66 @@
+<div align="center">
+
 # QuickGPT
 
-A lightweight, fast ChatGPT menu bar app for macOS. Personal alternative to MacGPT.
+**Native ChatGPT client for macOS, built in Swift**
 
-## Features
+[Getting started](#getting-started) · [Development](#development)
 
-- **Menu bar access** - Click brain icon to open ChatGPT panel
-- **Global shortcut** - ⌘⇧Space to toggle from anywhere
-- **Persistent session** - Login once, stays logged in
-- **Instant access** - ChatGPT preloads in background
-- **Click outside / Escape** - Clean dismissal
+</div>
 
-## Requirements
+<br>
 
-- macOS 13.0+
-- Xcode Command Line Tools
+A lightweight menu bar app that puts ChatGPT one shortcut away. No Electron, no browser tabs, no distractions. Pure Swift and WebKit, optimized for speed.
+
+| | |
+|---|---|
+| **Platform** | macOS 13.0+ (Ventura and later) |
+| **Stack** | Swift 5.9, SwiftUI, WebKit |
+| **Binary size** | ~2 MB |
+| **Memory** | ~80 MB idle |
+
+---
+
+## Getting started
+
+### Install
+
+```bash
+brew tap ilakiancs/quickgpt
+brew install --cask quickgpt
+```
+
+Grant Accessibility permission for global shortcuts:
+
+```
+System Settings → Privacy & Security → Accessibility → QuickGPT
+```
+
+### Usage
+
+| Action | Shortcut |
+|---|---|
+| Toggle panel | `⌘⇧Space` |
+| Open from menu bar | Click brain icon |
+| Close panel | `Escape` or click outside |
+| Context menu | Right-click icon |
+
+Sign in once with your ChatGPT account. Session persists across restarts.
+
+### Uninstall
+
+```bash
+brew uninstall --cask quickgpt
+brew untap ilakiancs/quickgpt
+```
+
+---
 
 ## Development
 
-```bash
-# Build and run (dev mode - no install)
-make run
+### Build from source
 
-# Build only
-make build
-
-# Install to /Applications
-make install
-
-# Uninstall
-make uninstall
-
-# Clean build
-make clean
-
-# Create release zip
-make release
-```
-
-## Quick Install
+Requires Xcode Command Line Tools.
 
 ```bash
 git clone https://github.com/Ilakiancs/QuickGPT.git
@@ -45,24 +68,20 @@ cd QuickGPT
 make install
 ```
 
-## Usage
+### Commands
 
-| Action | Result |
-|--------|--------|
-| Click menu bar icon | Toggle ChatGPT panel |
-| Right-click icon | Context menu |
-| ⌘⇧Space | Global toggle shortcut |
-| Escape | Close panel |
-| Click outside | Close panel |
+| Command | Description |
+|---|---|
+| `make build` | Compile the app |
+| `make run` | Build and launch |
+| `make install` | Install to /Applications |
+| `make uninstall` | Remove from /Applications |
+| `make release` | Create distributable zip |
 
-## Permissions
+---
 
-Grant **Accessibility** permission for global shortcuts:
+<div align="center">
 
-```
-System Settings → Privacy & Security → Accessibility → QuickGPT
-```
+MIT License
 
-## License
-
-MIT
+</div>
