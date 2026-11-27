@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - Updated the Defaults library to 9.x. Building from source now requires Xcode 26 (Swift 6.2); CI and releases run on GitHub's macOS 26 runners.
+- Updated the KeyboardShortcuts library to 3.x. Saved shortcuts carry over unchanged.
 
 ## [1.1.1] - 2026-11-27
 

@@ -8,7 +8,7 @@ let package = Package(
         .executable(name: "QuickGPT", targets: ["QuickGPT"])
     ],
     dependencies: [
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "1.16.0"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "3.1.0"),
         .package(url: "https://github.com/sindresorhus/Defaults", from: "9.0.9"),
     ],
     targets: [
