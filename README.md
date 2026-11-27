@@ -8,24 +8,41 @@ A lightweight, fast ChatGPT menu bar app for macOS. Personal alternative to MacG
 - **Global shortcut** - ⌘⇧Space to toggle from anywhere
 - **Persistent session** - Login once, stays logged in
 - **Instant access** - ChatGPT preloads in background
-- **Click outside to dismiss** - Clean, non-intrusive UX
+- **Click outside / Escape** - Clean dismissal
 
 ## Requirements
 
 - macOS 13.0+
-- Swift 5.9+
+- Xcode Command Line Tools
 
-## Build
+## Development
 
 ```bash
-swift build -c release
-./build.sh
+# Build and run (dev mode - no install)
+make run
+
+# Build only
+make build
+
+# Install to /Applications
+make install
+
+# Uninstall
+make uninstall
+
+# Clean build
+make clean
+
+# Create release zip
+make release
 ```
 
-## Install
+## Quick Install
 
 ```bash
-cp -r QuickGPT.app /Applications/
+git clone https://github.com/Ilakiancs/QuickGPT.git
+cd QuickGPT
+make install
 ```
 
 ## Usage
@@ -35,8 +52,17 @@ cp -r QuickGPT.app /Applications/
 | Click menu bar icon | Toggle ChatGPT panel |
 | Right-click icon | Context menu |
 | ⌘⇧Space | Global toggle shortcut |
+| Escape | Close panel |
+| Click outside | Close panel |
 
 ## Permissions
 
 Grant **Accessibility** permission for global shortcuts:
+
+```
 System Settings → Privacy & Security → Accessibility → QuickGPT
+```
+
+## License
+
+MIT
