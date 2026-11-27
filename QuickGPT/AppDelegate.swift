@@ -8,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
     private var webView: WKWebView!
+    private var webViewDelegate: WebViewDelegate!
     private var clickOutsideMonitor: Any?
     private var escapeMonitor: Any?
 
@@ -33,6 +34,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         webView = WKWebView(frame: .zero, configuration: config)
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.allowsBackForwardNavigationGestures = true
+
+        // Set up delegate to handle Google sign-in and popups
+        webViewDelegate = WebViewDelegate(webView: webView)
+        webView.navigationDelegate = webViewDelegate
+        webView.uiDelegate = webViewDelegate
     }
 
     private func preloadChatGPT() {
@@ -56,7 +62,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
-            // Use a simple brain icon
             if let image = NSImage(systemSymbolName: "brain.head.profile", accessibilityDescription: "QuickGPT") {
                 image.isTemplate = true
                 button.image = image
@@ -122,7 +127,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let buttonRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         let panelSize = panel.frame.size
 
-        // Position below menu bar icon, centered
         let x = buttonRect.midX - panelSize.width / 2
         let y = buttonRect.minY - panelSize.height - 4
 
@@ -138,16 +142,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Event Monitors
 
     private func setupMonitors() {
-        // Click outside to close
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, self.panel.isVisible else { return }
 
             let mouseLocation = NSEvent.mouseLocation
             let panelFrame = self.panel.frame
 
-            // Check if click is outside panel
             if !panelFrame.contains(mouseLocation) {
-                // Also check if not clicking the status item
                 if let buttonWindow = self.statusItem.button?.window {
                     if !buttonWindow.frame.contains(mouseLocation) {
                         self.hidePanel()
@@ -158,11 +159,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Escape key to close
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
 
-            if event.keyCode == 53 && self.panel.isVisible { // 53 = Escape
+            if event.keyCode == 53 && self.panel.isVisible {
                 self.hidePanel()
                 return nil
             }
@@ -183,7 +183,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Floating Panel (MacGPT-style)
+// MARK: - WebView Delegate (Handles Google Sign-in & Popups)
+
+class WebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
+    private weak var mainWebView: WKWebView?
+
+    init(webView: WKWebView) {
+        self.mainWebView = webView
+        super.init()
+    }
+
+    // Handle popup windows (Google sign-in opens in popup)
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        // Load popup URL in main webview instead of opening new window
+        if let url = navigationAction.request.url {
+            webView.load(URLRequest(url: url))
+        }
+        return nil
+    }
+
+    // Allow all navigations (including Google OAuth)
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        decisionHandler(.allow)
+    }
+
+    // Handle navigation response
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        decisionHandler(.allow)
+    }
+}
+
+// MARK: - Floating Panel
 
 class FloatingPanel: NSPanel {
     var onClose: (() -> Void)?
@@ -202,6 +235,10 @@ class FloatingPanel: NSPanel {
             }
         }, onReload: {
             webView.reload()
+        }, onBack: {
+            if webView.canGoBack {
+                webView.goBack()
+            }
         }))
 
         self.contentView = contentView
@@ -212,7 +249,6 @@ class FloatingPanel: NSPanel {
         self.isMovableByWindowBackground = true
         self.hasShadow = true
 
-        // Round corners
         self.contentView?.wantsLayer = true
         self.contentView?.layer?.cornerRadius = 12
         self.contentView?.layer?.masksToBounds = true
@@ -231,11 +267,20 @@ struct PanelView: View {
     let webView: WKWebView
     let onNewChat: () -> Void
     let onReload: () -> Void
+    let onBack: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Back")
+
                 Text("QuickGPT")
                     .font(.system(size: 13, weight: .semibold))
 
