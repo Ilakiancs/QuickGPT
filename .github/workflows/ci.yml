@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Test and build (Apple Silicon + Intel)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests
+        run: swift test
+
+      - name: Build release zips for both architectures
+        run: make release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickGPT-${{ github.sha }}
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          retention-days: 7

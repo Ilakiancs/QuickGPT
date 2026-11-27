@@ -1,23 +1,16 @@
 .PHONY: build run install uninstall clean release test
 
 APP_NAME = QuickGPT
-BUILD_DIR = .build/release
 APP_BUNDLE = $(APP_NAME).app
 INSTALL_DIR = /Applications
+NATIVE_ARCH := $(shell uname -m)
+VERSION ?= $(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+ARCHS = arm64 x86_64
+DIST = dist
 
-# Build release binary
+# Build the app for this Mac's architecture into ./QuickGPT.app
 build:
-	@echo "Building $(APP_NAME)..."
-	@swift build -c release
-	@mkdir -p $(APP_BUNDLE)/Contents/MacOS $(APP_BUNDLE)/Contents/Resources
-	@cp $(BUILD_DIR)/$(APP_NAME) $(APP_BUNDLE)/Contents/MacOS/
-	@cp Resources/Info.plist $(APP_BUNDLE)/Contents/
-	@cp Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/
-	@# SwiftPM resource bundles must sit at the app root (Bundle.module looks there); without the
-	@# KeyboardShortcuts one, opening the Shortcuts settings tab crashes on any machine without .build/.
-	@rm -rf $(APP_BUNDLE)/*.bundle $(APP_BUNDLE)/Contents/_CodeSignature
-	@cp -R $(BUILD_DIR)/*.bundle $(APP_BUNDLE)/
-	@echo "Build complete!"
+	@scripts/build-app.sh $(NATIVE_ARCH) .
 
 # Run unit tests
 test:
@@ -48,12 +41,16 @@ uninstall:
 # Clean build artifacts
 clean:
 	@swift package clean
-	@rm -rf .build
+	@rm -rf .build $(DIST)
 	@echo "Cleaned build artifacts"
 
-# Create release zip for distribution
-release: build
-	@rm -f $(APP_NAME).zip
-	@# No resource forks/xattrs: they become ._ junk files inside the app when unzipped by Homebrew
-	@ditto -c -k --norsrc --noextattr --keepParent $(APP_BUNDLE) $(APP_NAME).zip
-	@echo "Created $(APP_NAME).zip for distribution"
+# Build release zips for Apple Silicon and Intel, plus SHA256SUMS.txt, into dist/
+#   dist/QuickGPT-<version>-arm64.zip, dist/QuickGPT-<version>-x86_64.zip, dist/SHA256SUMS.txt
+release:
+	@rm -rf $(DIST) && mkdir -p $(DIST)
+	@for arch in $(ARCHS); do \
+		scripts/build-app.sh $$arch $(DIST)/$$arch $(VERSION) || exit 1; \
+		(cd $(DIST)/$$arch && ditto -c -k --norsrc --noextattr --keepParent $(APP_BUNDLE) ../$(APP_NAME)-$(VERSION)-$$arch.zip) || exit 1; \
+	done
+	@# No resource forks/xattrs above: they'd become ._ junk files inside the app when Homebrew unzips it
+	@cd $(DIST) && shasum -a 256 $(APP_NAME)-$(VERSION)-*.zip > SHA256SUMS.txt && cat SHA256SUMS.txt

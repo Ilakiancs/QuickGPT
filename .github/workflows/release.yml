@@ -1,0 +1,53 @@
+name: Release
+
+# Push a tag like v1.2.0 (matching Resources/Info.plist and a CHANGELOG.md entry) to publish a release.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: macos-15
+    env:
+      # Job-level so the cask step's `if:` can see it (a step's own env isn't available in its `if:`).
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Unit tests
+        run: swift test
+
+      # Fails if the tag doesn't match Resources/Info.plist.
+      - name: Build Apple Silicon and Intel zips
+        run: make release VERSION=${{ steps.version.outputs.version }}
+
+      # Fails if CHANGELOG.md has no entry for this version.
+      - name: Write release notes
+        run: scripts/release-notes.sh "${{ steps.version.outputs.version }}" > dist/notes.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/QuickGPT-*.zip dist/SHA256SUMS.txt \
+            --title "QuickGPT $GITHUB_REF_NAME" \
+            --notes-file dist/notes.md \
+            --verify-tag
+
+      # Optional: add a HOMEBREW_TAP_TOKEN secret (a fine-grained token with Contents: write on
+      # Ilakiancs/homebrew-quickgpt) to update the cask automatically. Without it this step is skipped
+      # and the cask can be updated by hand with scripts/update-cask.sh.
+      - name: Update Homebrew cask
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.HOMEBREW_TAP_TOKEN }}
+        run: scripts/update-cask.sh "${{ steps.version.outputs.version }}" dist/SHA256SUMS.txt
