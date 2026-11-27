@@ -89,7 +89,7 @@ struct PanelView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            HeaderButton(symbol: "chevron.left", help: "Back (⌘[)", action: controller.goBack)
+            HeaderButton(symbol: "chevron.left", help: "Back", action: controller.goBack)
                 .disabled(!state.canGoBack)
                 .opacity(state.canGoBack ? 1 : 0.35)
 

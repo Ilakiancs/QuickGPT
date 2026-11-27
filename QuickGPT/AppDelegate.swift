@@ -10,7 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     private var clickOutsideMonitor: Any?
-    private var keyMonitor: Any?
     /// The app that was frontmost before the panel opened, so focus goes back to it on dismiss.
     private var previousApp: NSRunningApplication?
 
@@ -199,7 +198,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupKeyMonitor() {
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        // Lives for the whole app run, so the token is never needed to remove it.
+        _ = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
             let key = event.charactersIgnoringModifiers ?? ""
@@ -214,8 +214,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case (.command, "n"): self.web.newChat()
             case (.command, "r"): self.web.reload()
             case (.command, "w"): self.hidePanel(restoreFocus: true)
-            case (.command, "="), (.command, "+"), ([.command, .shift], "+"): self.web.zoom(by: 0.1)
-            case (.command, "-"): self.web.zoom(by: -0.1)
+            case (.command, "="), (.command, "+"), ([.command, .shift], "+"): self.web.zoomIn()
+            case (.command, "-"): self.web.zoomOut()
             case (.command, "0"): self.web.resetZoom()
             default: return event
             }

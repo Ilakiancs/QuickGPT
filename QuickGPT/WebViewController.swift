@@ -2,37 +2,7 @@ import AppKit
 import WebKit
 import Defaults
 
-enum ChatGPT {
-    static let home = URL(string: "https://chatgpt.com")!
-
-    /// Hosts that stay inside the panel. Everything else the user clicks opens in the default browser.
-    /// Auth providers are listed so the one-time sign-in completes in-app and the session lands in our cookie store.
-    /// Redirects never go through this list, so sign-in still completes even if it hops through other hosts;
-    /// it only decides where *clicked* links open (help.openai.com etc. go to the browser).
-    static let inAppHosts = ["chatgpt.com", "oaistatic.com", "oaiusercontent.com"] + authHosts
-
-    static func isInApp(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
-        return inAppHosts.contains { host == $0 || host.hasSuffix("." + $0) }
-    }
-
-    private static let authHosts = [
-        "auth.openai.com", "auth0.openai.com",
-        "accounts.google.com", "appleid.apple.com", "idmsa.apple.com",
-        "login.microsoftonline.com", "login.live.com", "account.live.com",
-        "challenges.cloudflare.com",
-    ]
-
-    /// Sign-in pages carry one-time tokens; revisiting them from history shows
-    /// "Your sign-in session is no longer valid", so back/forward skips them.
-    static func isAuthPage(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return true }
-        if authHosts.contains(where: { host == $0 || host.hasSuffix("." + $0) }) { return true }
-        let path = url.path.lowercased()
-        return (host == "chatgpt.com" || host.hasSuffix(".chatgpt.com"))
-            && (path.hasPrefix("/auth") || path.hasPrefix("/api/auth"))
-    }
-
+extension ChatGPT {
     static func backTarget(in webView: WKWebView) -> WKBackForwardListItem? {
         webView.backForwardList.backList.last { !isAuthPage($0.url) }
     }
@@ -84,8 +54,16 @@ final class WebViewController: NSObject {
     var onEscape: (() -> Void)?
 
     private var downloadDestinations: [ObjectIdentifier: URL] = [:]
-    private var isShowingError = false
     private var lastCrash: Date?
+    /// A second crash within this window shows the error page instead of reloading in a loop.
+    private static let crashLoopWindow: TimeInterval = 10
+
+    /// Nothing loaded yet, or showing the offline/error page (loaded from a string, so it has an about: URL).
+    /// Derived from the URL rather than a flag: the error page's own load would reset a flag set before it.
+    private var needsRecovery: Bool {
+        guard let url = webView.url else { return true }
+        return url.scheme == "about"
+    }
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -99,7 +77,7 @@ final class WebViewController: NSObject {
         webView = WKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
         webView.allowsMagnification = true
-        webView.pageZoom = CGFloat(Defaults[.pageZoom])
+        webView.pageZoom = CGFloat(Zoom.clamp(Defaults[.pageZoom]))
         #if DEBUG
         if #available(macOS 13.3, *) { webView.isInspectable = true }
         #endif
@@ -123,7 +101,7 @@ final class WebViewController: NSObject {
 
     /// Starts a new chat through ChatGPT's own router (instant) and only falls back to a full load.
     func newChat() {
-        guard webView.url?.host?.hasSuffix("chatgpt.com") == true else { return loadHome() }
+        guard ChatGPT.isChatGPTHost(webView.url) else { return loadHome() }
         let js = """
         (() => {
           const a = document.querySelector('a[data-testid="create-new-chat-button"], [data-testid="create-new-chat-button"], nav a[href="/"], a[href="/"]');
@@ -138,13 +116,14 @@ final class WebViewController: NSObject {
     }
 
     func reload() {
-        if webView.url == nil || isShowingError { loadHome() } else { webView.reload() }
+        if needsRecovery { loadHome() } else { webView.reload() }
     }
 
     /// Called when the panel opens: retry if the last load failed (e.g. launched at login before Wi-Fi).
     func recoverIfNeeded() {
-        if webView.url == nil || isShowingError { loadHome() }
+        if needsRecovery { loadHome() }
     }
+
     func goBack() {
         if let item = ChatGPT.backTarget(in: webView) { webView.go(to: item) }
     }
@@ -169,14 +148,15 @@ final class WebViewController: NSObject {
         """)
     }
 
-    func zoom(by delta: Double) { setZoom(Double(webView.pageZoom) + delta) }
+    func zoomIn() { setZoom(Double(webView.pageZoom) + Zoom.step) }
+    func zoomOut() { setZoom(Double(webView.pageZoom) - Zoom.step) }
     func resetZoom() {
         webView.magnification = 1 // undo pinch zoom too
         setZoom(1.0)
     }
 
     private func setZoom(_ value: Double) {
-        let clamped = min(max(value, 0.5), 2.0)
+        let clamped = Zoom.clamp(value)
         webView.pageZoom = CGFloat(clamped)
         Defaults[.pageZoom] = clamped
     }
@@ -190,20 +170,6 @@ final class WebViewController: NSObject {
         }
         return "18.0"
     }()
-
-    private func uniqueDownloadURL(for filename: String) -> URL {
-        let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-        let name = filename.isEmpty ? "download" : filename
-        let base = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        var url = dir.appendingPathComponent(name)
-        var i = 1
-        while FileManager.default.fileExists(atPath: url.path) {
-            url = dir.appendingPathComponent(ext.isEmpty ? "\(base) (\(i))" : "\(base) (\(i)).\(ext)")
-            i += 1
-        }
-        return url
-    }
 
     /// Injected into chatgpt.com. Keeps UI chrome (buttons, menus, screen-reader labels) out of
     /// text selections and copies, and tells the app when Escape wasn't used by the page.
@@ -290,26 +256,17 @@ extension WebViewController: WKNavigationDelegate {
             return
         }
 
-        let scheme = url.scheme?.lowercased() ?? ""
-        if !["http", "https", "about", "blob", "data", "javascript"].contains(scheme) {
-            // mailto:, tel:, app links: hand off only when the user clicked them. Never open file: URLs,
-            // which would let any page or iframe launch local apps and files.
-            if navigationAction.navigationType == .linkActivated, scheme != "file" {
-                NSWorkspace.shared.open(url)
-            }
-            return decisionHandler(.cancel)
-        }
-
-        // Links the user clicks to other sites open in the browser so the chat stays put.
-        // Redirects (e.g. the sign-in flow) are not link clicks and always stay in-app.
-        if navigationAction.navigationType == .linkActivated,
-           navigationAction.targetFrame?.isMainFrame ?? true,
-           scheme == "http" || scheme == "https",
-           !ChatGPT.isInApp(url) {
+        switch NavigationPolicy.decide(url: url,
+                                       isLinkClick: navigationAction.navigationType == .linkActivated,
+                                       isMainFrame: navigationAction.targetFrame?.isMainFrame ?? true) {
+        case .allow:
+            decisionHandler(.allow)
+        case .cancel:
+            decisionHandler(.cancel)
+        case .openExternally:
             NSWorkspace.shared.open(url)
-            return decisionHandler(.cancel)
+            decisionHandler(.cancel)
         }
-        decisionHandler(.allow)
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
@@ -332,10 +289,6 @@ extension WebViewController: WKNavigationDelegate {
         download.delegate = self
     }
 
-    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        isShowingError = false
-    }
-
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         handleLoadFailure(error)
     }
@@ -345,11 +298,10 @@ extension WebViewController: WKNavigationDelegate {
     }
 
     /// WebKit kills the content process under memory pressure; bring the chat back instead of a blank panel.
-    /// A second crash within 10s shows the error page instead of reloading in a loop.
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         let now = Date()
         defer { lastCrash = now }
-        if let last = lastCrash, now.timeIntervalSince(last) < 10 {
+        if let last = lastCrash, now.timeIntervalSince(last) < Self.crashLoopWindow {
             return showError(title: "ChatGPT stopped unexpectedly", detail: "The page crashed twice in a row.")
         }
         if let url = webView.url, !ChatGPT.isAuthPage(url) { webView.reload() } else { loadHome() }
@@ -357,12 +309,11 @@ extension WebViewController: WKNavigationDelegate {
 
     private func handleLoadFailure(_ error: Error) {
         let ns = error as NSError
-        // Cancelled loads, and loads that turned into downloads, aren't failures.
-        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }
-        if ns.domain == "WebKitErrorDomain" && (ns.code == 102 || ns.code == 204) { return }
-        let offline = ns.domain == NSURLErrorDomain && [NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost,
-                                                       NSURLErrorTimedOut, NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed].contains(ns.code)
-        showError(title: offline ? "You're offline" : "Couldn't load ChatGPT", detail: ns.localizedDescription)
+        switch LoadFailure.classify(domain: ns.domain, code: ns.code) {
+        case .ignore: return // cancelled, or the load turned into a download
+        case .offline: showError(title: "You're offline", detail: ns.localizedDescription)
+        case .failed: showError(title: "Couldn't load ChatGPT", detail: ns.localizedDescription)
+        }
     }
 
     /// WKWebView shows nothing on failure, which left a blank white panel. Show a page with a retry link.
@@ -377,10 +328,9 @@ extension WebViewController: WKNavigationDelegate {
           h1 { font-size: 15px; font-weight: 600; margin: 0 0 6px; } p { margin: 0 0 16px; opacity: .65; max-width: 280px; }
           a { display: inline-block; padding: 6px 14px; border-radius: 6px; background: AccentColor; color: white; text-decoration: none; }
         </style>
-        <div><h1>\(esc(title))</h1><p>\(esc(detail))</p><a href="https://chatgpt.com/">Try Again</a></div>
+        <div><h1>\(esc(title))</h1><p>\(esc(detail))</p><a href="\(ChatGPT.home.absoluteString)">Try Again</a></div>
         """
         webView.loadHTMLString(html, baseURL: nil)
-        isShowingError = true
     }
 }
 
@@ -456,7 +406,8 @@ extension WebViewController: WKUIDelegate {
 extension WebViewController: WKDownloadDelegate {
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse,
                   suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
-        let url = uniqueDownloadURL(for: suggestedFilename)
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let url = Downloads.uniqueURL(for: suggestedFilename, in: downloads)
         downloadDestinations[ObjectIdentifier(download)] = url
         completionHandler(url)
     }
