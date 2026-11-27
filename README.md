@@ -75,7 +75,7 @@ brew untap ilakiancs/quickgpt
 
 ### Build from source
 
-Requires Xcode 16 or later.
+Requires Xcode 26 or later (Swift 6.2).
 
 ```bash
 git clone https://github.com/Ilakiancs/QuickGPT.git
